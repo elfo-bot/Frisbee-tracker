@@ -155,6 +155,7 @@ function renderManagerView() {
       onTheyScored: theyScored,
       onAssist: recordAssist,
       onCallahan: recordCallahan,
+      onToggleOD: toggleActiveOD,
       // Builder filter handlers — fast re-render, no DB fetch
       onBuilderSearch: (text) => { state.builderSearch = text; renderManagerView(); },
       onBuilderSquadFilter: (squad) => {
@@ -226,6 +227,17 @@ async function deleteGame(id) {
 }
 
 // ---------- Game Manager handlers ----------
+
+// Toggle O/D on the active line
+function toggleActiveOD(lineId) {
+  const line = state.lines.find((l) => l.id === lineId);
+  if (!line) return;
+  const newOD = line.od_type === 'O' ? 'D' : 'O';
+  line.od_type = newOD;
+  state.currentOD = newOD;
+  renderManagerView();
+  db.updateLine(lineId, { od_type: newOD }); // fire-and-forget
+}
 
 // Set starting O/D and gender ratio for the game
 async function setGameConfig({ start_od, start_gender }) {
@@ -445,6 +457,16 @@ async function deleteLine(lineId) {
   if (!confirm('Delete this planned line?')) return;
   state.lines = state.lines.filter((l) => l.id !== lineId); // optimistic
   if (state.selectedLineId === lineId) state.selectedLineId = null;
+  // Renumber remaining planned lines sequentially
+  let num = 1;
+  state.lines.forEach((l) => {
+    if (l.status === 'completed' || l.status === 'active') { num = l.line_number + 1; return; }
+    if (l.line_number !== num) {
+      l.line_number = num;
+      db.updateLine(l.id, { line_number: num }); // fire-and-forget
+    }
+    num++;
+  });
   renderManagerView();
   db.deleteLine(lineId); // fire-and-forget
   showToast('Line deleted');

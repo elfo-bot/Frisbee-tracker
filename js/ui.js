@@ -285,11 +285,14 @@ export function renderGameManager(state, handlers) {
   activeSection.appendChild(el('h3', { className: 'section-title' }, `LIVE${pointNum}`));
 
   if (activeLine) {
-    // Prominent O/D banner
+    // Prominent O/D banner (clickable to toggle)
     if (activeLine.od_type) {
-      activeSection.appendChild(el('div', {
+      const banner = el('div', {
         className: `od-banner ${activeLine.od_type === 'O' ? 'od-offense' : 'od-defense'}`,
-      }, activeLine.od_type === 'O' ? '⚔️  OFFENSE' : '🛡  DEFENSE'));
+        style: 'cursor:pointer',
+        onClick: () => handlers.onToggleOD(activeLine.id),
+      }, activeLine.od_type === 'O' ? '⚔️  OFFENSE' : '🛡  DEFENSE');
+      activeSection.appendChild(banner);
     }
     // Gender ratio badge (smaller, below banner)
     if (activeLine.gender_ratio) {
@@ -364,11 +367,6 @@ export function renderGameManager(state, handlers) {
         }, `🚨 THEY SCORED (+1 ${game.opponent.toUpperCase()})`)
       );
     }
-
-    // End point button
-    activeSection.appendChild(
-      el('button', { className: 'btn btn-yellow end-point-btn', onClick: () => handlers.onEndPoint(activeLine.id) }, '⏭ END POINT / NEXT LINE')
-    );
   } else {
     activeSection.appendChild(el('p', { className: 'empty-msg' }, 'No active line. Activate a planned line below.'));
   }
