@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>METRO — Ultimate Frisbee Tracker</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div>
+      <div class="logo"><span class="metro-icon">M</span>METRO</div>
+      <div class="subtitle">Ultimate Frisbee Tracker</div>
+    </div>
+  </header>
+
+  <!-- Navigation (subway line) -->
+  <nav class="nav-bar">
+    <div id="nav-stations"></div>
+  </nav>
+
+  <!-- Views -->
+  <main class="main-content">
+    <section id="view-roster" class="view-section active"></section>
+    <section id="view-games" class="view-section"></section>
+    <section id="view-manager" class="view-section"></section>
+    <section id="view-stats" class="view-section"></section>
+  </main>
+
+  <!-- Loading overlay -->
+  <div id="loading" class="loading-overlay">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- App script (ES module) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
