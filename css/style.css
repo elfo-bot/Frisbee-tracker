@@ -568,8 +568,8 @@ input:focus, select:focus {
 /* Points-played badge inside builder player box */
 .pts-played-badge {
   font-size: .6rem;
-  color: var(--text-muted);
-  opacity: .8;
+  color: var(--accent-yellow);
+  font-weight: 700;
   margin-top: 1px;
 }
 
