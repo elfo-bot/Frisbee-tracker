@@ -22,6 +22,14 @@ function clearEl(container) {
   container.innerHTML = '';
 }
 
+// ABBA gender helper (mirrored from app.js — used for UI prediction in planned lines)
+function abbaGender(startGender, pointNum) {
+  const cycle = [0, 1, 1, 0];
+  const isFlip = cycle[(pointNum - 1) % 4] === 1;
+  if (!isFlip) return startGender;
+  return startGender === 'M' ? 'F' : 'M';
+}
+
 // ---------- NAV ----------
 export function renderNav(activeView, onNavigate) {
   const nav = document.getElementById('nav-stations');
@@ -56,7 +64,18 @@ export function renderSquads(players, squads, { onAssign }) {
 
   const LABELS = ['A', 'B', 'C'];
 
-  // Three squad columns
+  // Unassigned pool — shown FIRST for quick access
+  const unassigned = players.filter((p) => p.active && !squads[p.id]);
+  const unSec = el('div', { className: 'section-block' });
+  unSec.appendChild(el('h3', { className: 'section-title' }, `UNASSIGNED${unassigned.length > 0 ? ` (${unassigned.length})` : ' — all assigned!'}`));
+  if (unassigned.length > 0) {
+    const pool = el('div', { className: 'squad-pool' });
+    unassigned.forEach((p) => pool.appendChild(makeSquadCard(p, null, LABELS, onAssign)));
+    unSec.appendChild(pool);
+  }
+  sec.appendChild(unSec);
+
+  // Three squad columns below
   const grid = el('div', { className: 'squads-grid' });
   LABELS.forEach((label) => {
     const col = el('div', { className: `squad-col squad-col-${label.toLowerCase()}` });
@@ -70,17 +89,6 @@ export function renderSquads(players, squads, { onAssign }) {
     grid.appendChild(col);
   });
   sec.appendChild(grid);
-
-  // Unassigned pool
-  const unassigned = players.filter((p) => p.active && !squads[p.id]);
-  const unSec = el('div', { className: 'section-block' });
-  unSec.appendChild(el('h3', { className: 'section-title' }, `UNASSIGNED${unassigned.length > 0 ? ` (${unassigned.length})` : ' — all assigned!'}`))
-  if (unassigned.length > 0) {
-    const pool = el('div', { className: 'squad-pool' });
-    unassigned.forEach((p) => pool.appendChild(makeSquadCard(p, null, LABELS, onAssign)));
-    unSec.appendChild(pool);
-  }
-  sec.appendChild(unSec);
 
   // Inactive players note
   const inactive = players.filter((p) => !p.active);
@@ -199,7 +207,7 @@ export function renderGameManager(state, handlers) {
   }
 
   const { game, lines, events, players, selectedLineId, selectedPlayerId, pendingScorePlayerId, pendingScoreLineId,
-    squads = {}, squadFilter = null, builderSearch = '' } = state;
+    squads = {}, squadFilter = null, builderSearch = '', builderGenderFilter = null } = state;
 
   // ── Game config (O/D + Gender) ──
   // Always show a compact setup strip; block the rest until both are chosen
@@ -382,13 +390,13 @@ export function renderGameManager(state, handlers) {
     const ratioOk = (line.players || []).length === 7 && ((mCount === 4 && fCount === 3) || (mCount === 3 && fCount === 4));
     const ratioText = `${mCount}M + ${fCount}F`;
 
-    // Predict O/D and gender for this queued line
-    const completedCount = lines.filter((l) => l.status === 'completed').length;
-    const queueIdx = plannedLines.indexOf(line); // 0-based position in queue
-    // O/D comes from whoever last scored; we can't predict for future points without scoring history
-    // Show od_type if already stamped, otherwise show '?' to indicate it'll be set at activation
+    // Predict gender using ABBA when not yet stamped on the line
+    const predictedGender = game && game.start_gender
+      ? abbaGender(game.start_gender, line.line_number)
+      : null;
+    const effectiveGender = line.gender_ratio || predictedGender;
     const odLabel = line.od_type ? (line.od_type === 'O' ? '⚔' : '🛡') : '?';
-    const genderLabel = line.gender_ratio ? (line.gender_ratio === 'M' ? '4M+3F' : '3M+4F') : '?';
+    const genderLabel = effectiveGender ? (effectiveGender === 'M' ? '4M+3F' : '3M+4F') : '';
 
     const lineCard = el('div', { className: `planned-line-card${selectedLineId === line.id ? ' editing' : ''}` }, [
       el('div', { className: 'planned-line-header' }, [
@@ -459,6 +467,17 @@ export function renderGameManager(state, handlers) {
       filterBar.appendChild(squadBtns);
     }
 
+    // Gender filter buttons
+    const genderBtns = el('div', { className: 'builder-squad-btns' });
+    genderBtns.appendChild(el('span', { className: 'filter-label' }, 'GENDER:'));
+    [{ v: 'M', label: '♂ Male' }, { v: 'F', label: '♀ Female' }].forEach(({ v, label }) => {
+      genderBtns.appendChild(el('button', {
+        className: `btn btn-tiny squad-filter-btn${builderGenderFilter === v ? ' active' : ''}`,
+        onClick: () => handlers.onBuilderGenderFilter(v),
+      }, label));
+    });
+    filterBar.appendChild(genderBtns);
+
     builderWrap.appendChild(filterBar);
 
     // Apply filters to player list
@@ -466,12 +485,20 @@ export function renderGameManager(state, handlers) {
     const filteredPlayers = players.filter((p) => {
       if (!p.active) return false;
       if (squadFilter && squads[p.id] !== squadFilter) return false;
+      if (builderGenderFilter && p.gender !== builderGenderFilter) return false;
       if (searchLower) {
         const nameMatch = p.name.toLowerCase().includes(searchLower);
         const numMatch = p.number != null && String(p.number).includes(searchLower.replace('#', ''));
         if (!nameMatch && !numMatch) return false;
       }
       return true;
+    });
+
+    // Compute points played per player for display in builder
+    const playedLines = lines.filter((l) => l.status === 'completed' || l.status === 'active');
+    const ptsPlayedMap = {};
+    players.forEach((p) => {
+      ptsPlayedMap[p.id] = playedLines.filter((l) => (l.players || []).some((lp) => lp.id === p.id)).length;
     });
 
     // Show all active players to toggle in/out
@@ -489,6 +516,7 @@ export function renderGameManager(state, handlers) {
       );
       // Squad badge
       const playerSquad = squads[p.id];
+      const pts = ptsPlayedMap[p.id] || 0;
       const box = el('div', {
         className: `player-box small ${p.gender === 'M' ? 'male' : 'female'}${isIn ? ' in-line' : ''}${!isIn && !canAdd ? ' disabled' : ''}`,
         onClick: () => {
@@ -498,13 +526,16 @@ export function renderGameManager(state, handlers) {
       }, [
         el('span', { className: 'player-number' }, p.number != null ? `#${p.number}` : ''),
         el('span', { className: 'player-name' }, p.name),
+        el('span', { className: 'pts-played-badge' }, `${pts}pt`),
         playerSquad ? el('span', { className: 'squad-mini-badge' }, playerSquad) : null,
         isIn ? el('span', { className: 'in-badge' }, '✓') : null,
       ]);
       rosterGrid.appendChild(box);
     });
     builderWrap.appendChild(rosterGrid);
-    builderWrap.appendChild(el('button', { className: 'btn btn-yellow', onClick: () => handlers.onEditLine(null) }, 'DONE EDITING'));
+    builderWrap.appendChild(el('div', { className: 'done-editing-wrap' },
+      [el('button', { className: 'btn btn-yellow done-editing-btn', onClick: () => handlers.onEditLine(null) }, '✓ DONE EDITING')]
+    ));
   }
   plannedSection.appendChild(builderWrap);
   sec.appendChild(plannedSection);
@@ -527,8 +558,7 @@ export function renderGameManager(state, handlers) {
     sec.appendChild(compSection);
   }
 
-  // Live summary table
-  renderLiveSummary(sec, players, lines, events);
+  // Live summary removed from game manager (available in STATS tab)
 }
 
 // ---------- LIVE SUMMARY TABLE ----------

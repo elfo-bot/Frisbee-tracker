@@ -520,6 +520,28 @@ input:focus, select:focus {
   margin-bottom: 8px;
 }
 
+.done-editing-wrap {
+  display: block;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #333;
+}
+
+.done-editing-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  font-size: .9rem;
+}
+
+/* Points-played badge inside builder player box */
+.pts-played-badge {
+  font-size: .6rem;
+  color: var(--text-muted);
+  opacity: .8;
+  margin-top: 1px;
+}
+
 /* ---------- Game list ---------- */
 .game-list {
   display: flex;

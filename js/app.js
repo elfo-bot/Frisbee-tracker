@@ -26,6 +26,7 @@ const state = {
   // Builder filter state (persists across add/remove clicks without a DB refetch)
   squadFilter: null,  // null | 'A' | 'B' | 'C'
   builderSearch: '',
+  builderGenderFilter: null, // null | 'M' | 'F'
   // Stats
   allEvents: [],
 };
@@ -52,7 +53,7 @@ function setPlayerSquad(playerId, squad) {
 function navigate(view) {
   state.view = view;
   // Reset builder filter when leaving manager
-  if (view !== 'manager') { state.squadFilter = null; state.builderSearch = ''; }
+  if (view !== 'manager') { state.squadFilter = null; state.builderSearch = ''; state.builderGenderFilter = null; }
   document.querySelectorAll('.view-section').forEach((s) => s.classList.remove('active'));
   document.getElementById(`view-${view}`).classList.add('active');
   renderNav(view, navigate);
@@ -130,6 +131,7 @@ function renderManagerView() {
       squads: state.squads,
       squadFilter: state.squadFilter,
       builderSearch: state.builderSearch,
+      builderGenderFilter: state.builderGenderFilter,
     },
     {
       onSetGameConfig: setGameConfig,
@@ -150,6 +152,10 @@ function renderManagerView() {
       onBuilderSearch: (text) => { state.builderSearch = text; renderManagerView(); },
       onBuilderSquadFilter: (squad) => {
         state.squadFilter = state.squadFilter === squad ? null : squad;
+        renderManagerView();
+      },
+      onBuilderGenderFilter: (gender) => {
+        state.builderGenderFilter = state.builderGenderFilter === gender ? null : gender;
         renderManagerView();
       },
     }
