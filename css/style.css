@@ -669,6 +669,17 @@ input:focus, select:focus {
 .ev-col.ev-turnover { color: var(--accent-red); }
 .pts-played-cell { color: var(--mtr-teal); font-weight: 700; }
 
+/* Sortable table headers */
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color .15s ease;
+}
+.sortable-th:hover {
+  color: #fff;
+}
+
 /* ---------- Stats filter ---------- */
 .stats-filter {
   display: flex;

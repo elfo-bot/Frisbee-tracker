@@ -662,7 +662,7 @@ export function renderStats(allGames, allEvents, players, allLinePlayers = [], a
 }
 
 function renderStatsTable(container, players, events, linePlayers = [], lines = []) {
-  let existing = container.querySelector('.stats-table');
+  let existing = container.querySelector('.stats-table-wrap');
   if (existing) existing.remove();
 
   // Compute points played per player from completed/active lines
@@ -676,49 +676,95 @@ function renderStatsTable(container, players, events, linePlayers = [], lines = 
     }
   });
 
-  const wrap = el('div', { className: 'stats-table-wrap' });
-  const table = el('table', { className: 'summary-table stats-table' });
-  const thead = el('thead', {}, [
-    el('tr', {}, [
-      el('th', {}, '#'),
-      el('th', {}, 'Player'),
-      el('th', {}, 'G'),
-      el('th', {}, 'Pts'),
-      el('th', { className: 'ev-col ev-d' }, 'D'),
-      el('th', { className: 'ev-col ev-score' }, 'Goal'),
-      el('th', { className: 'ev-col ev-assist' }, 'Ast'),
-      el('th', { className: 'ev-col ev-turnover' }, 'TO'),
-      el('th', { className: 'ev-col ev-callahan' }, 'Cal'),
-      el('th', {}, 'Total'),
-    ]),
-  ]);
-  table.appendChild(thead);
-
-  const tbody = el('tbody');
-  sortByGender(players).forEach((p) => {
-    const ptsPlayed = ptsPlayedMap[p.id] || 0;
+  // Build row data so we can sort it
+  const rows = players.map((p) => {
     const pEvents = events.filter((e) => e.player_id === p.id);
-    const dCount     = pEvents.filter((e) => e.event_type === 'D').length;
-    const scoreCount = pEvents.filter((e) => e.event_type === 'Score').length;
-    const assistCount = pEvents.filter((e) => e.event_type === 'Assist').length;
-    const toCount    = pEvents.filter((e) => e.event_type === 'Turnover').length;
-    const calCount   = pEvents.filter((e) => e.event_type === 'Callahan').length;
-
-    const row = el('tr', { className: p.gender === 'M' ? 'row-male' : 'row-female' }, [
-      el('td', {}, p.number != null ? String(p.number) : ''),
-      el('td', {}, p.name),
-      el('td', {}, p.gender),
-      el('td', { className: 'pts-played-cell' }, String(ptsPlayed)),
-      el('td', { className: 'ev-col ev-d' },        String(dCount)),
-      el('td', { className: 'ev-col ev-score' },    String(scoreCount)),
-      el('td', { className: 'ev-col ev-assist' },   String(assistCount)),
-      el('td', { className: 'ev-col ev-turnover' }, String(toCount)),
-      el('td', { className: 'ev-col ev-callahan' }, String(calCount)),
-      el('td', {}, String(dCount + scoreCount + assistCount + toCount + calCount)),
-    ]);
-    tbody.appendChild(row);
+    const pts   = ptsPlayedMap[p.id] || 0;
+    const d     = pEvents.filter((e) => e.event_type === 'D').length;
+    const goal  = pEvents.filter((e) => e.event_type === 'Score').length;
+    const ast   = pEvents.filter((e) => e.event_type === 'Assist').length;
+    const to    = pEvents.filter((e) => e.event_type === 'Turnover').length;
+    const cal   = pEvents.filter((e) => e.event_type === 'Callahan').length;
+    return { p, num: p.number ?? 999, pts, d, goal, ast, to, cal, total: d + goal + ast + to + cal };
   });
-  table.appendChild(tbody);
-  wrap.appendChild(table);
+
+  // Column definitions: key, label, className, sort accessor
+  const cols = [
+    { key: 'num',   label: '#',      cls: '',                    acc: (r) => r.num },
+    { key: 'name',  label: 'Player', cls: '',                    acc: (r) => r.p.name.toLowerCase() },
+    { key: 'g',     label: 'G',      cls: '',                    acc: (r) => r.p.gender },
+    { key: 'pts',   label: 'Pts',    cls: 'pts-played-cell',     acc: (r) => r.pts },
+    { key: 'd',     label: 'D',      cls: 'ev-col ev-d',         acc: (r) => r.d },
+    { key: 'goal',  label: 'Goal',   cls: 'ev-col ev-score',     acc: (r) => r.goal },
+    { key: 'ast',   label: 'Ast',    cls: 'ev-col ev-assist',    acc: (r) => r.ast },
+    { key: 'to',    label: 'TO',     cls: 'ev-col ev-turnover',  acc: (r) => r.to },
+    { key: 'cal',   label: 'Cal',    cls: 'ev-col ev-callahan',  acc: (r) => r.cal },
+    { key: 'total', label: 'Total',  cls: '',                    acc: (r) => r.total },
+  ];
+
+  // Sort state (closure — resets when table is rebuilt, i.e. on navigation)
+  let sortKey = null;
+  let sortAsc = true;
+
+  function defaultSort(arr) {
+    return arr.sort((a, b) => {
+      if (a.p.gender !== b.p.gender) return a.p.gender === 'M' ? -1 : 1;
+      return (a.num) - (b.num);
+    });
+  }
+
+  function sortedRows() {
+    if (!sortKey) return defaultSort([...rows]);
+    const col = cols.find((c) => c.key === sortKey);
+    if (!col) return defaultSort([...rows]);
+    const sorted = [...rows].sort((a, b) => {
+      const va = col.acc(a);
+      const vb = col.acc(b);
+      if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortAsc ? va - vb : vb - va;
+    });
+    return sorted;
+  }
+
+  const wrap = el('div', { className: 'stats-table-wrap' });
+
+  function buildTable() {
+    wrap.innerHTML = '';
+    const table = el('table', { className: 'summary-table stats-table' });
+    const headerCells = cols.map((c) => {
+      const arrow = sortKey === c.key ? (sortAsc ? ' ▲' : ' ▼') : '';
+      const th = el('th', {
+        className: (c.cls ? c.cls + ' ' : '') + 'sortable-th',
+        onClick: () => {
+          if (sortKey === c.key) sortAsc = !sortAsc;
+          else { sortKey = c.key; sortAsc = c.key === 'name' || c.key === 'g'; }
+          buildTable();
+        },
+      }, c.label + arrow);
+      return th;
+    });
+    table.appendChild(el('thead', {}, [el('tr', {}, headerCells)]));
+
+    const tbody = el('tbody');
+    sortedRows().forEach((r) => {
+      const row = el('tr', { className: r.p.gender === 'M' ? 'row-male' : 'row-female' }, [
+        el('td', {}, r.p.number != null ? String(r.p.number) : ''),
+        el('td', {}, r.p.name),
+        el('td', {}, r.p.gender),
+        el('td', { className: 'pts-played-cell' }, String(r.pts)),
+        el('td', { className: 'ev-col ev-d' },        String(r.d)),
+        el('td', { className: 'ev-col ev-score' },    String(r.goal)),
+        el('td', { className: 'ev-col ev-assist' },   String(r.ast)),
+        el('td', { className: 'ev-col ev-turnover' }, String(r.to)),
+        el('td', { className: 'ev-col ev-callahan' }, String(r.cal)),
+        el('td', {}, String(r.total)),
+      ]);
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  }
+
+  buildTable();
   container.appendChild(wrap);
 }
