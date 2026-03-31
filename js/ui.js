@@ -28,6 +28,7 @@ export function renderNav(activeView, onNavigate) {
   clearEl(nav);
   const views = [
     { id: 'roster', label: 'ROSTER' },
+    { id: 'squads', label: 'SQUADS' },
     { id: 'games', label: 'GAMES' },
     { id: 'manager', label: 'GAME MGR' },
     { id: 'stats', label: 'STATS' },
@@ -43,6 +44,68 @@ export function renderNav(activeView, onNavigate) {
     nav.appendChild(station);
     if (i < views.length - 1) nav.appendChild(el('span', { className: 'station-line' }));
   });
+}
+
+// ---------- SQUADS VIEW ----------
+export function renderSquads(players, squads, { onAssign }) {
+  const sec = document.getElementById('view-squads');
+  clearEl(sec);
+
+  sec.appendChild(el('h2', { className: 'page-title' }, 'SQUAD LINES'));
+  sec.appendChild(el('p', { className: 'squads-hint' }, 'Pre-assign players to Line A, B, or C. These groups appear as quick filters when building game lines.'));
+
+  const LABELS = ['A', 'B', 'C'];
+
+  // Three squad columns
+  const grid = el('div', { className: 'squads-grid' });
+  LABELS.forEach((label) => {
+    const col = el('div', { className: `squad-col squad-col-${label.toLowerCase()}` });
+    col.appendChild(el('h3', { className: 'squad-col-title' }, `LINE ${label}`));
+    const squadPlayers = players.filter((p) => squads[p.id] === label);
+    if (squadPlayers.length === 0) {
+      col.appendChild(el('p', { className: 'squad-empty' }, '— empty —'));
+    } else {
+      squadPlayers.forEach((p) => col.appendChild(makeSquadCard(p, label, LABELS, onAssign)));
+    }
+    grid.appendChild(col);
+  });
+  sec.appendChild(grid);
+
+  // Unassigned pool
+  const unassigned = players.filter((p) => p.active && !squads[p.id]);
+  const unSec = el('div', { className: 'section-block' });
+  unSec.appendChild(el('h3', { className: 'section-title' }, `UNASSIGNED${unassigned.length > 0 ? ` (${unassigned.length})` : ' — all assigned!'}`))
+  if (unassigned.length > 0) {
+    const pool = el('div', { className: 'squad-pool' });
+    unassigned.forEach((p) => pool.appendChild(makeSquadCard(p, null, LABELS, onAssign)));
+    unSec.appendChild(pool);
+  }
+  sec.appendChild(unSec);
+
+  // Inactive players note
+  const inactive = players.filter((p) => !p.active);
+  if (inactive.length > 0) {
+    sec.appendChild(el('p', { className: 'squads-hint' }, `${inactive.length} inactive player(s) not shown. Toggle active in ROSTER.`));
+  }
+}
+
+function makeSquadCard(player, currentSquad, labels, onAssign) {
+  const card = el('div', { className: `squad-card ${player.gender === 'M' ? 'male' : 'female'}` });
+  // Name row
+  card.appendChild(el('div', { className: 'squad-card-name' }, [
+    player.number != null ? el('span', { className: 'player-number' }, `#${player.number}`) : el('span', {}),
+    el('span', {}, player.name),
+  ]));
+  // Squad toggle buttons
+  const btns = el('div', { className: 'squad-card-btns' });
+  labels.forEach((s) => {
+    btns.appendChild(el('button', {
+      className: `btn btn-tiny squad-btn${currentSquad === s ? ' squad-btn-active' : ''}`,
+      onClick: () => onAssign(player.id, currentSquad === s ? null : s),
+    }, s));
+  });
+  card.appendChild(btns);
+  return card;
 }
 
 // ---------- ROSTER VIEW ----------
@@ -135,7 +198,8 @@ export function renderGameManager(state, handlers) {
     return;
   }
 
-  const { game, lines, events, players, selectedLineId, selectedPlayerId, pendingScorePlayerId, pendingScoreLineId } = state;
+  const { game, lines, events, players, selectedLineId, selectedPlayerId, pendingScorePlayerId, pendingScoreLineId,
+    squads = {}, squadFilter = null, builderSearch = '' } = state;
 
   // ── Game config (O/D + Gender) ──
   // Always show a compact setup strip; block the rest until both are chosen
@@ -366,14 +430,65 @@ export function renderGameManager(state, handlers) {
       el('button', { className: 'btn btn-green', onClick: handlers.onCreateLine }, '+ NEW PLANNED LINE')
     );
   } else {
+    // ── Filter controls ──
+    const filterBar = el('div', { className: 'builder-filter-bar' });
+
+    // Text search
+    const searchInput = el('input', {
+      type: 'text',
+      className: 'builder-search',
+      placeholder: '🔍 Search name / #number',
+      value: builderSearch,
+    });
+    searchInput.addEventListener('input', (e) => handlers.onBuilderSearch(e.target.value));
+    filterBar.appendChild(searchInput);
+
+    // Squad filter buttons (only show if any players have squad assignments)
+    const hasSquads = players.some((p) => squads[p.id]);
+    if (hasSquads) {
+      const squadBtns = el('div', { className: 'builder-squad-btns' });
+      squadBtns.appendChild(el('span', { className: 'filter-label' }, 'LINE:'));
+      ['A', 'B', 'C'].forEach((s) => {
+        const count = players.filter((p) => p.active && squads[p.id] === s).length;
+        if (count === 0) return;
+        squadBtns.appendChild(el('button', {
+          className: `btn btn-tiny squad-filter-btn${squadFilter === s ? ' active' : ''}`,
+          onClick: () => handlers.onBuilderSquadFilter(s),
+        }, `${s} (${count})`));
+      });
+      filterBar.appendChild(squadBtns);
+    }
+
+    builderWrap.appendChild(filterBar);
+
+    // Apply filters to player list
+    const searchLower = builderSearch.toLowerCase();
+    const filteredPlayers = players.filter((p) => {
+      if (!p.active) return false;
+      if (squadFilter && squads[p.id] !== squadFilter) return false;
+      if (searchLower) {
+        const nameMatch = p.name.toLowerCase().includes(searchLower);
+        const numMatch = p.number != null && String(p.number).includes(searchLower.replace('#', ''));
+        if (!nameMatch && !numMatch) return false;
+      }
+      return true;
+    });
+
     // Show all active players to toggle in/out
     const rosterGrid = el('div', { className: 'builder-grid' });
-    players.filter((p) => p.active).forEach((p) => {
+
+    if (filteredPlayers.length === 0) {
+      rosterGrid.appendChild(el('p', { className: 'empty-msg' }, 'No players match filter.'));
+    }
+
+    filteredPlayers.forEach((p) => {
       const isIn = editingPlayerIds.includes(p.id);
       // Check if adding is allowed
       const canAdd = !isIn && editingPlayerIds.length < 7 && (
         (p.gender === 'M' && builderMCount < 4) || (p.gender === 'F' && builderFCount < 4)
       );
+      // Squad badge
+      const playerSquad = squads[p.id];
       const box = el('div', {
         className: `player-box small ${p.gender === 'M' ? 'male' : 'female'}${isIn ? ' in-line' : ''}${!isIn && !canAdd ? ' disabled' : ''}`,
         onClick: () => {
@@ -383,6 +498,7 @@ export function renderGameManager(state, handlers) {
       }, [
         el('span', { className: 'player-number' }, p.number != null ? `#${p.number}` : ''),
         el('span', { className: 'player-name' }, p.name),
+        playerSquad ? el('span', { className: 'squad-mini-badge' }, playerSquad) : null,
         isIn ? el('span', { className: 'in-badge' }, '✓') : null,
       ]);
       rosterGrid.appendChild(box);

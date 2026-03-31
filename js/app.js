@@ -2,7 +2,7 @@
 // METRO Ultimate Frisbee Tracker — App Controller
 // ============================================
 import * as db from './db.js';
-import { renderNav, renderRoster, renderGames, renderGameManager, renderStats } from './ui.js';
+import { renderNav, renderRoster, renderSquads, renderGames, renderGameManager, renderStats } from './ui.js';
 
 // ---------- State ----------
 const state = {
@@ -21,13 +21,37 @@ const state = {
   pendingScoreLineId: null,
   // Current O/D side — updated after each score (not ABBA; based on who scored)
   currentOD: null,
+  // Squads — pre-assigned player groupings (Line A / B / C), stored in localStorage
+  squads: {},
+  // Builder filter state (persists across add/remove clicks without a DB refetch)
+  squadFilter: null,  // null | 'A' | 'B' | 'C'
+  builderSearch: '',
   // Stats
   allEvents: [],
 };
 
+// ---------- Squads (localStorage) ----------
+function loadSquads() {
+  try { return JSON.parse(localStorage.getItem('metro_squads_v1') || '{}'); }
+  catch { return {}; }
+}
+function saveSquads(squads) {
+  localStorage.setItem('metro_squads_v1', JSON.stringify(squads));
+}
+function setPlayerSquad(playerId, squad) {
+  const s = loadSquads();
+  if (squad) s[playerId] = squad;
+  else delete s[playerId];
+  saveSquads(s);
+  state.squads = s;
+  refresh();
+}
+
 // ---------- Navigation ----------
 function navigate(view) {
   state.view = view;
+  // Reset builder filter when leaving manager
+  if (view !== 'manager') { state.squadFilter = null; state.builderSearch = ''; }
   document.querySelectorAll('.view-section').forEach((s) => s.classList.remove('active'));
   document.getElementById(`view-${view}`).classList.add('active');
   renderNav(view, navigate);
@@ -47,6 +71,11 @@ async function refresh() {
           onToggle: togglePlayer,
         });
         break;
+      case 'squads':
+        state.players = await db.getPlayers();
+        state.squads = loadSquads();
+        renderSquads(state.players, state.squads, { onAssign: setPlayerSquad });
+        break;
       case 'games':
         state.games = await db.getGames();
         renderGames(state.games, {
@@ -62,39 +91,13 @@ async function refresh() {
           state.lines = data.lines;
           state.events = data.events;
           state.players = await db.getPlayers();
+          state.squads = loadSquads();
           // Initialise currentOD from start_od if not yet set this session
           if (!state.currentOD && state.game && state.game.start_od) {
             state.currentOD = state.game.start_od;
           }
         }
-        renderGameManager(
-          {
-            game: state.game,
-            lines: state.lines,
-            events: state.events,
-            players: state.players,
-            selectedLineId: state.selectedLineId,
-            selectedPlayerId: state.selectedPlayerId,
-            pendingScorePlayerId: state.pendingScorePlayerId,
-            pendingScoreLineId: state.pendingScoreLineId,
-          },
-          {
-            onSetGameConfig: setGameConfig,
-            onSelectPlayer: selectPlayer,
-            onAddEvent: addEvent,
-            onDeleteEvent: deleteEvent,
-            onEndPoint: endPoint,
-            onCreateLine: createLine,
-            onEditLine: editLine,
-            onActivateLine: activateLine,
-            onDeleteLine: deleteLine,
-            onAddToLine: addToLine,
-            onRemoveFromLine: removeFromLine,
-            onTheyScored: theyScored,
-            onAssist: recordAssist,
-            onCallahan: recordCallahan,
-          }
-        );
+        renderManagerView();
         break;
       case 'stats':
         state.games = await db.getGames();
@@ -110,6 +113,47 @@ async function refresh() {
     showToast('Error loading data. Check console.', true);
   }
   showLoading(false);
+}
+
+// ---------- Game manager render (uses cached state, no DB fetch) ----------
+function renderManagerView() {
+  renderGameManager(
+    {
+      game: state.game,
+      lines: state.lines,
+      events: state.events,
+      players: state.players,
+      selectedLineId: state.selectedLineId,
+      selectedPlayerId: state.selectedPlayerId,
+      pendingScorePlayerId: state.pendingScorePlayerId,
+      pendingScoreLineId: state.pendingScoreLineId,
+      squads: state.squads,
+      squadFilter: state.squadFilter,
+      builderSearch: state.builderSearch,
+    },
+    {
+      onSetGameConfig: setGameConfig,
+      onSelectPlayer: selectPlayer,
+      onAddEvent: addEvent,
+      onDeleteEvent: deleteEvent,
+      onEndPoint: endPoint,
+      onCreateLine: createLine,
+      onEditLine: editLine,
+      onActivateLine: activateLine,
+      onDeleteLine: deleteLine,
+      onAddToLine: addToLine,
+      onRemoveFromLine: removeFromLine,
+      onTheyScored: theyScored,
+      onAssist: recordAssist,
+      onCallahan: recordCallahan,
+      // Builder filter handlers — fast re-render, no DB fetch
+      onBuilderSearch: (text) => { state.builderSearch = text; renderManagerView(); },
+      onBuilderSquadFilter: (squad) => {
+        state.squadFilter = state.squadFilter === squad ? null : squad;
+        renderManagerView();
+      },
+    }
+  );
 }
 
 // ---------- Roster handlers ----------

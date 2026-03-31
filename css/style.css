@@ -894,4 +894,213 @@ input:focus, select:focus {
   .main-content { padding: 12px 8px 80px; }
   .summary-table { font-size: .7rem; }
   .summary-table th, .summary-table td { padding: 4px 3px; }
+  .squads-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================
+   SQUADS VIEW
+   ============================================ */
+
+.page-title {
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--accent-yellow);
+  margin-bottom: 4px;
+}
+
+.squads-hint {
+  font-size: .8rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* Three-column grid */
+.squads-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.squad-col {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  border-top: 3px solid var(--text-muted);
+}
+
+.squad-col-a { border-top-color: var(--accent-green); }
+.squad-col-b { border-top-color: var(--accent-blue); }
+.squad-col-c { border-top-color: var(--accent-yellow); }
+
+.squad-col-title {
+  font-size: .85rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.squad-col-a .squad-col-title { color: var(--accent-green); }
+.squad-col-b .squad-col-title { color: var(--accent-blue); }
+.squad-col-c .squad-col-title { color: var(--accent-yellow); }
+
+.squad-empty {
+  font-size: .75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* Unassigned pool */
+.squad-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Squad player card */
+.squad-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+}
+
+.squad-card.male {
+  background: var(--male-bg);
+  border-color: var(--male-border);
+}
+.squad-card.female {
+  background: var(--female-bg);
+  border-color: var(--female-border);
+}
+
+/* In the pool, make cards more compact */
+.squad-pool .squad-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+  min-width: 140px;
+  flex: 0 1 auto;
+}
+
+.squad-card-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.squad-card-btns {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Squad assignment buttons */
+.squad-btn {
+  min-width: 28px;
+  padding: 3px 8px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  font-weight: 800;
+}
+
+.squad-btn-active {
+  color: #111;
+  border-color: transparent;
+}
+
+/* Colour the active state per squad */
+.squad-col-a .squad-btn-active,
+.squad-pool .squad-btn-active[data-squad="A"] { background: var(--accent-green); }
+.squad-col-b .squad-btn-active,
+.squad-pool .squad-btn-active[data-squad="B"] { background: var(--accent-blue); }
+.squad-col-c .squad-btn-active,
+.squad-pool .squad-btn-active[data-squad="C"] { background: var(--accent-yellow); }
+
+/* Generic active (when not inside a col) */
+.squad-btn-active { background: var(--accent-yellow); color: #111; }
+
+/* ============================================
+   BUILDER FILTER BAR
+   ============================================ */
+
+.builder-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+}
+
+.builder-search {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: .85rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.builder-search:focus {
+  outline: none;
+  border-color: var(--accent-yellow);
+}
+
+.builder-squad-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.squad-filter-btn {
+  padding: 3px 10px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  font-weight: 800;
+}
+
+.squad-filter-btn.active {
+  background: var(--accent-yellow);
+  color: #111;
+  border-color: var(--accent-yellow);
+}
+
+/* Mini squad badge shown on player cards in builder */
+.squad-mini-badge {
+  font-size: .65rem;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent-yellow);
+  color: #111;
+  line-height: 1.4;
+}
+
