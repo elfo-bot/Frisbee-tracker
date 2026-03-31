@@ -244,7 +244,51 @@ function showToast(msg, isError = false) {
   setTimeout(() => (t.className = 'toast'), 2500);
 }
 
+// ---------- Seed data (auto-inserts 22 test players on first load) ----------
+const SEED_PLAYERS = [
+  { name: 'Alex Chen',    gender: 'M', number: 1 },
+  { name: 'Jordan Wu',    gender: 'M', number: 2 },
+  { name: 'Marcus Lee',   gender: 'M', number: 3 },
+  { name: 'Ryan Patel',   gender: 'M', number: 4 },
+  { name: 'Derek Tan',    gender: 'M', number: 5 },
+  { name: 'Kevin Ng',     gender: 'M', number: 6 },
+  { name: 'Sam Huang',    gender: 'M', number: 7 },
+  { name: 'Tyler Kim',    gender: 'M', number: 8 },
+  { name: 'Brandon Liu',  gender: 'M', number: 9 },
+  { name: 'Chris Yang',   gender: 'M', number: 10 },
+  { name: 'Nathan Ho',    gender: 'M', number: 11 },
+  { name: 'Mia Zhang',    gender: 'F', number: 12 },
+  { name: 'Sophie Lin',   gender: 'F', number: 13 },
+  { name: 'Emma Wang',    gender: 'F', number: 14 },
+  { name: 'Olivia Cho',   gender: 'F', number: 15 },
+  { name: 'Hannah Lim',   gender: 'F', number: 16 },
+  { name: 'Chloe Sun',    gender: 'F', number: 17 },
+  { name: 'Ava Cheng',    gender: 'F', number: 18 },
+  { name: 'Lily Fong',    gender: 'F', number: 19 },
+  { name: 'Grace Yip',    gender: 'F', number: 20 },
+  { name: 'Zoe Park',     gender: 'F', number: 21 },
+  { name: 'Ruby Tam',     gender: 'F', number: 22 },
+];
+
+async function seedIfEmpty() {
+  try {
+    const existing = await db.getPlayers();
+    if (existing.length === 0) {
+      showLoading(true);
+      for (const p of SEED_PLAYERS) {
+        await db.addPlayer(p);
+      }
+      showToast('22 test players seeded!');
+      showLoading(false);
+    }
+  } catch (e) {
+    // Supabase not configured yet — silently skip
+    console.warn('Seed skipped (Supabase not configured?):', e.message);
+  }
+}
+
 // ---------- Init ----------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await seedIfEmpty();
   navigate('roster');
 });
