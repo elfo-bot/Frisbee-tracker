@@ -19,6 +19,8 @@ const state = {
   // Score flow state: when a player scores, we prompt for assist
   pendingScorePlayerId: null,
   pendingScoreLineId: null,
+  // Current O/D side — updated after each score (not ABBA; based on who scored)
+  currentOD: null,
   // Stats
   allEvents: [],
 };
@@ -60,6 +62,10 @@ async function refresh() {
           state.lines = data.lines;
           state.events = data.events;
           state.players = await db.getPlayers();
+          // Initialise currentOD from start_od if not yet set this session
+          if (!state.currentOD && state.game && state.game.start_od) {
+            state.currentOD = state.game.start_od;
+          }
         }
         renderGameManager(
           {
@@ -138,6 +144,9 @@ async function selectGame(id) {
   state.currentGameId = id;
   state.selectedLineId = null;
   state.selectedPlayerId = null;
+  state.pendingScorePlayerId = null;
+  state.pendingScoreLineId = null;
+  state.currentOD = null;
   navigate('manager');
 }
 
@@ -158,32 +167,28 @@ async function deleteGame(id) {
 
 // Set starting O/D and gender ratio for the game
 async function setGameConfig({ start_od, start_gender }) {
-  await db.updateGame(state.game.id, { start_od, start_gender });
-  state.game.start_od = start_od;
-  state.game.start_gender = start_gender;
-  showToast(`Game set: start on ${start_od}, first line ${start_gender === 'M' ? '4M+3F' : '3M+4F'}`);
+  const updates = {};
+  if (start_od !== null) updates.start_od = start_od;
+  if (start_gender !== null) updates.start_gender = start_gender;
+  await db.updateGame(state.game.id, updates);
+  if (start_od !== null) state.game.start_od = start_od;
+  if (start_gender !== null) state.game.start_gender = start_gender;
+  // Initialise currentOD from start_od if not yet set
+  if (!state.currentOD && state.game.start_od) state.currentOD = state.game.start_od;
+  const odLabel = state.game.start_od ? `start on ${state.game.start_od}` : '';
+  const gLabel = state.game.start_gender ? (state.game.start_gender === 'M' ? '4M+3F first' : '3M+4F first') : '';
+  if (odLabel || gLabel) showToast([odLabel, gLabel].filter(Boolean).join(', '));
   refresh();
 }
 
-// ABBA helpers: compute O/D and gender ratio for a given point number (1-based)
-function getPointOD(startOD, pointNum) {
-  // ABBA: 1=A, 2=B,B, 4=A,A, 6=B,B ...
-  // After the first point, they alternate in pairs
-  // Point 1: startOD
-  // Point 2,3: flip
-  // Point 4,5: startOD
-  // Point 6,7: flip ...
-  const flip = startOD === 'O' ? 'D' : 'O';
-  if (pointNum === 1) return startOD;
-  const block = Math.floor((pointNum - 1 + 1) / 2); // 0-indexed block
-  return block % 2 === 0 ? startOD : flip;
-}
-
+// ABBA gender helper — cycle A,B,B,A,A,B,B,A... (only for gender, not O/D)
+// O/D is NOT ABBA — it flips based on who scored each point
 function getPointGender(startGender, pointNum) {
-  const flip = startGender === 'M' ? 'F' : 'M';
-  if (pointNum === 1) return startGender;
-  const block = Math.floor((pointNum - 1 + 1) / 2);
-  return block % 2 === 0 ? startGender : flip;
+  // Reference cycle: [A, B, B, A] repeating
+  const cycle = [0, 1, 1, 0];
+  const isFlip = cycle[(pointNum - 1) % 4] === 1;
+  if (!isFlip) return startGender;
+  return startGender === 'M' ? 'F' : 'M';
 }
 
 function selectPlayer(id) {
@@ -218,36 +223,47 @@ async function recordAssist(playerId) {
   const newScore = state.game.our_score + 1;
   await db.updateGame(state.game.id, { our_score: newScore });
   state.game.our_score = newScore;
+  // We scored → we pull next point → we start on D
+  state.currentOD = 'D';
+  const completedLineId = state.pendingScoreLineId;
   state.pendingScorePlayerId = null;
   state.pendingScoreLineId = null;
   state.selectedPlayerId = null;
-  showToast('Score + Assist recorded! +1 METRO');
-  refresh();
+  showToast('⚡ GOAL + Assist! +1 METRO — auto-advancing...');
+  await endPoint(completedLineId);
 }
 
 async function recordCallahan() {
   const lineId = state.pendingScoreLineId;
   const scorerId = state.pendingScorePlayerId;
-  // Record Callahan event for the scorer
   await db.addEvent({ game_id: state.game.id, line_id: lineId, player_id: scorerId, event_type: 'Callahan' });
   // Auto +1 our score
   const newScore = state.game.our_score + 1;
   await db.updateGame(state.game.id, { our_score: newScore });
   state.game.our_score = newScore;
+  // We scored → we pull next point → we start on D
+  state.currentOD = 'D';
+  const completedLineId = state.pendingScoreLineId;
   state.pendingScorePlayerId = null;
   state.pendingScoreLineId = null;
   state.selectedPlayerId = null;
-  showToast('CALLAHAN! +1 METRO');
-  refresh();
+  showToast('🔥 CALLAHAN! +1 METRO — auto-advancing...');
+  await endPoint(completedLineId);
 }
 
 async function theyScored() {
+  const activeLine = state.lines.find((l) => l.status === 'active');
   const newScore = state.game.their_score + 1;
   await db.updateGame(state.game.id, { their_score: newScore });
   state.game.their_score = newScore;
+  // They scored → they pull next point → we start on O
+  state.currentOD = 'O';
+  state.pendingScorePlayerId = null;
+  state.pendingScoreLineId = null;
   state.selectedPlayerId = null;
-  showToast(`They scored. ${state.game.opponent} +1`);
-  refresh();
+  showToast(`🚨 They scored. ${state.game.opponent} +1 — auto-advancing...`);
+  if (activeLine) await endPoint(activeLine.id);
+  else refresh();
 }
 
 async function deleteEvent(id) {
@@ -261,6 +277,10 @@ async function endPoint(lineId) {
   await db.updateLine(lineId, { status: 'completed' });
   state.pendingScorePlayerId = null;
   state.pendingScoreLineId = null;
+  // Re-fetch lines so we see the just-completed one
+  const data = await db.getGameWithLines(state.currentGameId);
+  state.lines = data.lines;
+  state.events = data.events;
   // Activate next planned line if exists
   const nextPlanned = state.lines.find((l) => l.status === 'planned');
   if (nextPlanned) {
@@ -268,20 +288,21 @@ async function endPoint(lineId) {
     const fCount = (nextPlanned.players || []).filter((p) => p.gender === 'F').length;
     const ratioOk = (nextPlanned.players || []).length === 7 && ((mCount === 4 && fCount === 3) || (mCount === 3 && fCount === 4));
     if (ratioOk) {
-      // Calculate the next point's O/D and gender from ABBA
       const nextPointNum = nextPlanned.line_number;
       const updates = { status: 'active' };
-      if (state.game.start_od) {
-        updates.od_type = getPointOD(state.game.start_od, nextPointNum);
-      }
+      // O/D: driven by who just scored (state.currentOD), NOT ABBA
+      if (state.currentOD) updates.od_type = state.currentOD;
+      // Gender: ABBA cycle (A,B,B,A...)
       if (state.game.start_gender) {
         updates.gender_ratio = getPointGender(state.game.start_gender, nextPointNum);
       }
       await db.updateLine(nextPlanned.id, updates);
-      showToast(`Line #${nextPlanned.line_number} now active`);
+      showToast(`▶ Line #${nextPlanned.line_number} active · ${updates.od_type || '?'} · ${updates.gender_ratio === 'M' ? '4M+3F' : updates.gender_ratio === 'F' ? '3M+4F' : ''}`);
     } else {
-      showToast('Next line doesn\'t have valid ratio. Set it up manually.', true);
+      showToast('⚠ Next line needs valid 7-player ratio — set it up!', true);
     }
+  } else {
+    showToast('No next line queued — add one in PLANNED LINES below', true);
   }
   state.selectedPlayerId = null;
   refresh();
@@ -304,15 +325,16 @@ async function activateLine(lineId) {
   const line = state.lines.find((l) => l.id === lineId);
   const pointNum = line ? line.line_number : 1;
   const updates = { status: 'active' };
-  if (state.game.start_od) {
-    updates.od_type = getPointOD(state.game.start_od, pointNum);
-  }
+  // O/D: use currentOD if set (from last score), otherwise fall back to start_od for pt1
+  const od = state.currentOD || state.game.start_od;
+  if (od) updates.od_type = od;
+  // Gender: ABBA cycle
   if (state.game.start_gender) {
     updates.gender_ratio = getPointGender(state.game.start_gender, pointNum);
   }
   await db.updateLine(lineId, updates);
   state.selectedLineId = null;
-  showToast('Line activated');
+  showToast(`▶ Line activated · ${updates.od_type || '?'} · ${updates.gender_ratio === 'M' ? '4M+3F' : updates.gender_ratio === 'F' ? '3M+4F' : ''}`);
   refresh();
 }
 

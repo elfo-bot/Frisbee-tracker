@@ -138,6 +138,7 @@ export function renderGameManager(state, handlers) {
   const { game, lines, events, players, selectedLineId, selectedPlayerId, pendingScorePlayerId, pendingScoreLineId } = state;
 
   // ── Game config (O/D + Gender) ──
+  // Always show a compact setup strip; block the rest until both are chosen
   if (!game.start_od || !game.start_gender) {
     const configSection = el('div', { className: 'section-block config-block' });
     configSection.appendChild(el('h3', { className: 'section-title' }, 'GAME SETUP'));
@@ -148,8 +149,8 @@ export function renderGameManager(state, handlers) {
     const odGroup = el('div', { className: 'config-btn-group' });
     ['O', 'D'].forEach((v) => {
       odGroup.appendChild(el('button', {
-        className: `btn config-choice${game._tempOD === v ? ' chosen' : ''}`,
-        onClick: () => { game._tempOD = v; handlers.onSetGameConfig({ start_od: game._tempOD, start_gender: game._tempGender || null }); },
+        className: `btn config-choice${game.start_od === v ? ' chosen' : ''}`,
+        onClick: () => handlers.onSetGameConfig({ start_od: v, start_gender: game.start_gender || null }),
       }, v === 'O' ? 'OFFENSE' : 'DEFENSE'));
     });
     configForm.appendChild(odGroup);
@@ -158,8 +159,8 @@ export function renderGameManager(state, handlers) {
     const genderGroup = el('div', { className: 'config-btn-group' });
     [{ v: 'M', label: '4M + 3F (Male)' }, { v: 'F', label: '3M + 4F (Female)' }].forEach(({ v, label }) => {
       genderGroup.appendChild(el('button', {
-        className: `btn config-choice${game._tempGender === v ? ' chosen' : ''}`,
-        onClick: () => { game._tempGender = v; handlers.onSetGameConfig({ start_od: game._tempOD || null, start_gender: game._tempGender }); },
+        className: `btn config-choice${game.start_gender === v ? ' chosen' : ''}`,
+        onClick: () => handlers.onSetGameConfig({ start_od: game.start_od || null, start_gender: v }),
       }, label));
     });
     configForm.appendChild(genderGroup);
@@ -191,25 +192,25 @@ export function renderGameManager(state, handlers) {
   const activeLine = lines.find((l) => l.status === 'active');
   const activeSection = el('div', { className: 'section-block' });
 
-  // Point info header with O/D and gender badges
-  const pointHeader = [];
-  pointHeader.push(`CURRENT LINE${activeLine ? ` (#${activeLine.line_number})` : ''}`);
-  activeSection.appendChild(el('h3', { className: 'section-title' }, pointHeader.join(' ')));
+  // Point info header
+  const pointNum = activeLine ? ` — POINT #${activeLine.line_number}` : '';
+  activeSection.appendChild(el('h3', { className: 'section-title' }, `LIVE${pointNum}`));
 
   if (activeLine) {
-    // O/D and gender ratio badges
-    const badgeRow = el('div', { className: 'point-badges' });
+    // Prominent O/D banner
     if (activeLine.od_type) {
-      badgeRow.appendChild(el('span', {
-        className: `point-badge ${activeLine.od_type === 'O' ? 'badge-o' : 'badge-d'}`,
-      }, activeLine.od_type === 'O' ? '🏈 OFFENSE' : '🛡 DEFENSE'));
+      activeSection.appendChild(el('div', {
+        className: `od-banner ${activeLine.od_type === 'O' ? 'od-offense' : 'od-defense'}`,
+      }, activeLine.od_type === 'O' ? '⚔️  OFFENSE' : '🛡  DEFENSE'));
     }
+    // Gender ratio badge (smaller, below banner)
     if (activeLine.gender_ratio) {
+      const badgeRow = el('div', { className: 'point-badges' });
       badgeRow.appendChild(el('span', {
         className: `point-badge ${activeLine.gender_ratio === 'M' ? 'badge-male' : 'badge-female'}`,
       }, activeLine.gender_ratio === 'M' ? '4M + 3F' : '3M + 4F'));
+      activeSection.appendChild(badgeRow);
     }
-    activeSection.appendChild(badgeRow);
   }
 
   if (activeLine && activeLine.players) {
@@ -317,16 +318,26 @@ export function renderGameManager(state, handlers) {
     const ratioOk = (line.players || []).length === 7 && ((mCount === 4 && fCount === 3) || (mCount === 3 && fCount === 4));
     const ratioText = `${mCount}M + ${fCount}F`;
 
+    // Predict O/D and gender for this queued line
+    const completedCount = lines.filter((l) => l.status === 'completed').length;
+    const queueIdx = plannedLines.indexOf(line); // 0-based position in queue
+    // O/D comes from whoever last scored; we can't predict for future points without scoring history
+    // Show od_type if already stamped, otherwise show '?' to indicate it'll be set at activation
+    const odLabel = line.od_type ? (line.od_type === 'O' ? '⚔' : '🛡') : '?';
+    const genderLabel = line.gender_ratio ? (line.gender_ratio === 'M' ? '4M+3F' : '3M+4F') : '?';
+
     const lineCard = el('div', { className: `planned-line-card${selectedLineId === line.id ? ' editing' : ''}` }, [
       el('div', { className: 'planned-line-header' }, [
-        el('span', {}, `Line #${line.line_number}`),
-        el('span', { className: `ratio-badge ${ratioOk ? 'ok' : 'warn'}` }, `${ratioText} ${ratioOk ? '✅' : '⚠️'}`),
+        el('span', { className: 'line-point-num' }, `PT #${line.line_number}`),
+        el('span', { className: `ratio-badge ${ratioOk ? 'ok' : 'warn'}` }, `${ratioText} ${ratioOk ? '✓' : '⚠'}`),
+        el('span', { className: 'line-od-label' }, odLabel),
+        el('span', { className: 'line-gender-label' }, genderLabel),
         el('div', { className: 'planned-line-actions' }, [
           el('button', { className: 'btn btn-small btn-blue', onClick: () => handlers.onEditLine(line.id) }, 'EDIT'),
           ratioOk && !activeLine
-            ? el('button', { className: 'btn btn-small btn-green', onClick: () => handlers.onActivateLine(line.id) }, '▶ ACTIVATE')
+            ? el('button', { className: 'btn btn-small btn-green', onClick: () => handlers.onActivateLine(line.id) }, '▶ GO LIVE')
             : ratioOk && activeLine
-              ? el('button', { className: 'btn btn-small btn-green', disabled: 'true', title: 'End current point first' }, '▶ ACTIVATE')
+              ? el('button', { className: 'btn btn-small btn-green', disabled: 'true', title: 'End current point first' }, '▶ GO LIVE')
               : null,
           el('button', { className: 'btn btn-small btn-red', onClick: () => handlers.onDeleteLine(line.id) }, '✕'),
         ]),
