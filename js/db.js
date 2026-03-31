@@ -52,8 +52,11 @@ export async function getGames() {
   return query('games', { params: { select: '*', order: 'created_at.desc' } });
 }
 
-export async function createGame({ date, opponent }) {
-  const rows = await query('games', { method: 'POST', body: { date, opponent } });
+export async function createGame({ date, opponent, start_od, start_gender }) {
+  const body = { date, opponent };
+  if (start_od) body.start_od = start_od;
+  if (start_gender) body.start_gender = start_gender;
+  const rows = await query('games', { method: 'POST', body });
   return rows[0];
 }
 

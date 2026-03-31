@@ -135,63 +135,146 @@ export function renderGameManager(state, handlers) {
     return;
   }
 
-  const { game, lines, events, players, selectedLineId, selectedPlayerId } = state;
+  const { game, lines, events, players, selectedLineId, selectedPlayerId, pendingScorePlayerId, pendingScoreLineId } = state;
 
-  // Scoreboard
+  // ── Game config (O/D + Gender) ──
+  if (!game.start_od || !game.start_gender) {
+    const configSection = el('div', { className: 'section-block config-block' });
+    configSection.appendChild(el('h3', { className: 'section-title' }, 'GAME SETUP'));
+
+    const configForm = el('div', { className: 'config-form' });
+
+    configForm.appendChild(el('label', { className: 'config-label' }, 'We start on:'));
+    const odGroup = el('div', { className: 'config-btn-group' });
+    ['O', 'D'].forEach((v) => {
+      odGroup.appendChild(el('button', {
+        className: `btn config-choice${game._tempOD === v ? ' chosen' : ''}`,
+        onClick: () => { game._tempOD = v; handlers.onSetGameConfig({ start_od: game._tempOD, start_gender: game._tempGender || null }); },
+      }, v === 'O' ? 'OFFENSE' : 'DEFENSE'));
+    });
+    configForm.appendChild(odGroup);
+
+    configForm.appendChild(el('label', { className: 'config-label' }, 'First point gender ratio:'));
+    const genderGroup = el('div', { className: 'config-btn-group' });
+    [{ v: 'M', label: '4M + 3F (Male)' }, { v: 'F', label: '3M + 4F (Female)' }].forEach(({ v, label }) => {
+      genderGroup.appendChild(el('button', {
+        className: `btn config-choice${game._tempGender === v ? ' chosen' : ''}`,
+        onClick: () => { game._tempGender = v; handlers.onSetGameConfig({ start_od: game._tempOD || null, start_gender: game._tempGender }); },
+      }, label));
+    });
+    configForm.appendChild(genderGroup);
+
+    configSection.appendChild(configForm);
+
+    if (!game.start_od || !game.start_gender) {
+      configSection.appendChild(el('p', { className: 'empty-msg' }, 'Set both options above to start tracking.'));
+    }
+    sec.appendChild(configSection);
+    if (!game.start_od || !game.start_gender) return;
+  }
+
+  // ── Scoreboard (no manual +/- buttons, scores are auto) ──
   const scoreboard = el('div', { className: 'scoreboard' }, [
     el('div', { className: 'score-team' }, [
       el('span', { className: 'score-name' }, 'METRO'),
-      el('span', { className: 'score-value', id: 'our-score' }, String(game.our_score)),
-      el('div', { className: 'score-btns' }, [
-        el('button', { className: 'btn btn-green btn-small', onClick: () => handlers.onScoreChange('our', 1) }, '+'),
-        el('button', { className: 'btn btn-red btn-small', onClick: () => handlers.onScoreChange('our', -1) }, '−'),
-      ]),
+      el('span', { className: 'score-value' }, String(game.our_score)),
     ]),
     el('span', { className: 'score-vs' }, 'VS'),
     el('div', { className: 'score-team' }, [
       el('span', { className: 'score-name' }, game.opponent.toUpperCase()),
-      el('span', { className: 'score-value', id: 'their-score' }, String(game.their_score)),
-      el('div', { className: 'score-btns' }, [
-        el('button', { className: 'btn btn-green btn-small', onClick: () => handlers.onScoreChange('their', 1) }, '+'),
-        el('button', { className: 'btn btn-red btn-small', onClick: () => handlers.onScoreChange('their', -1) }, '−'),
-      ]),
+      el('span', { className: 'score-value their-score' }, String(game.their_score)),
     ]),
   ]);
   sec.appendChild(scoreboard);
 
-  // Active line
+  // ── Active line ──
   const activeLine = lines.find((l) => l.status === 'active');
   const activeSection = el('div', { className: 'section-block' });
-  activeSection.appendChild(el('h3', { className: 'section-title' }, `CURRENT LINE${activeLine ? ` (#${activeLine.line_number})` : ''}`));
+
+  // Point info header with O/D and gender badges
+  const pointHeader = [];
+  pointHeader.push(`CURRENT LINE${activeLine ? ` (#${activeLine.line_number})` : ''}`);
+  activeSection.appendChild(el('h3', { className: 'section-title' }, pointHeader.join(' ')));
+
+  if (activeLine) {
+    // O/D and gender ratio badges
+    const badgeRow = el('div', { className: 'point-badges' });
+    if (activeLine.od_type) {
+      badgeRow.appendChild(el('span', {
+        className: `point-badge ${activeLine.od_type === 'O' ? 'badge-o' : 'badge-d'}`,
+      }, activeLine.od_type === 'O' ? '🏈 OFFENSE' : '🛡 DEFENSE'));
+    }
+    if (activeLine.gender_ratio) {
+      badgeRow.appendChild(el('span', {
+        className: `point-badge ${activeLine.gender_ratio === 'M' ? 'badge-male' : 'badge-female'}`,
+      }, activeLine.gender_ratio === 'M' ? '4M + 3F' : '3M + 4F'));
+    }
+    activeSection.appendChild(badgeRow);
+  }
 
   if (activeLine && activeLine.players) {
-    const lineGrid = el('div', { className: 'line-grid' });
-    activeLine.players.forEach((p) => {
-      const isSelected = selectedPlayerId === p.id;
-      const box = el('div', {
-        className: `player-box ${p.gender === 'M' ? 'male' : 'female'}${isSelected ? ' selected' : ''}`,
-        onClick: () => handlers.onSelectPlayer(p.id),
-      }, [
-        el('span', { className: 'player-number' }, p.number != null ? `#${p.number}` : ''),
-        el('span', { className: 'player-name' }, p.name),
-      ]);
-      lineGrid.appendChild(box);
-    });
-    activeSection.appendChild(lineGrid);
+    // ── ASSIST PICK MODE ──
+    if (pendingScorePlayerId && pendingScoreLineId === activeLine.id) {
+      const scorer = activeLine.players.find((p) => p.id === pendingScorePlayerId);
+      const assistPanel = el('div', { className: 'assist-panel' });
+      assistPanel.appendChild(el('h4', { className: 'assist-title' }, `🎯 ${scorer ? scorer.name : ''} scored! Who assisted?`));
 
-    // Event buttons (show when a player is selected)
-    if (selectedPlayerId) {
-      const selPlayer = activeLine.players.find((p) => p.id === selectedPlayerId);
-      const eventPanel = el('div', { className: 'event-panel' }, [
-        el('span', { className: 'event-label' }, `Event for ${selPlayer ? selPlayer.name : ''}:`),
-        ...['D', 'Score', 'Assist', 'Turnover'].map((evt) =>
-          el('button', {
-            className: `btn event-btn event-${evt.toLowerCase()}`,
-            onClick: () => handlers.onAddEvent(activeLine.id, selectedPlayerId, evt),
-          }, evt)
-        ),
-      ]);
-      activeSection.appendChild(eventPanel);
+      const assistGrid = el('div', { className: 'line-grid' });
+      activeLine.players.forEach((p) => {
+        if (p.id === pendingScorePlayerId) return; // Can't assist yourself
+        const box = el('div', {
+          className: `player-box ${p.gender === 'M' ? 'male' : 'female'} assist-pick`,
+          onClick: () => handlers.onAssist(p.id),
+        }, [
+          el('span', { className: 'player-number' }, p.number != null ? `#${p.number}` : ''),
+          el('span', { className: 'player-name' }, p.name),
+        ]);
+        assistGrid.appendChild(box);
+      });
+      assistPanel.appendChild(assistGrid);
+      assistPanel.appendChild(el('button', {
+        className: 'btn btn-green callahan-btn',
+        onClick: () => handlers.onCallahan(),
+      }, '🔥 CALLAHAN (No Assist)'));
+      activeSection.appendChild(assistPanel);
+    } else {
+      // ── Normal player select + event mode ──
+      const lineGrid = el('div', { className: 'line-grid' });
+      activeLine.players.forEach((p) => {
+        const isSelected = selectedPlayerId === p.id;
+        const box = el('div', {
+          className: `player-box ${p.gender === 'M' ? 'male' : 'female'}${isSelected ? ' selected' : ''}`,
+          onClick: () => handlers.onSelectPlayer(p.id),
+        }, [
+          el('span', { className: 'player-number' }, p.number != null ? `#${p.number}` : ''),
+          el('span', { className: 'player-name' }, p.name),
+        ]);
+        lineGrid.appendChild(box);
+      });
+      activeSection.appendChild(lineGrid);
+
+      // Event buttons (show when a player is selected)
+      if (selectedPlayerId) {
+        const selPlayer = activeLine.players.find((p) => p.id === selectedPlayerId);
+        const eventPanel = el('div', { className: 'event-panel' }, [
+          el('span', { className: 'event-label' }, `Event for ${selPlayer ? selPlayer.name : ''}:`),
+          ...['D', 'Score', 'Turnover'].map((evt) =>
+            el('button', {
+              className: `btn event-btn event-${evt.toLowerCase()}`,
+              onClick: () => handlers.onAddEvent(activeLine.id, selectedPlayerId, evt),
+            }, evt)
+          ),
+        ]);
+        activeSection.appendChild(eventPanel);
+      }
+
+      // They Scored button
+      activeSection.appendChild(
+        el('button', {
+          className: 'btn btn-red they-scored-btn',
+          onClick: () => handlers.onTheyScored(),
+        }, `🚨 THEY SCORED (+1 ${game.opponent.toUpperCase()})`)
+      );
     }
 
     // End point button
@@ -337,6 +420,7 @@ function renderLiveSummary(container, players, lines, events) {
       el('th', { className: 'ev-col ev-score' }, 'Goal'),
       el('th', { className: 'ev-col ev-assist' }, 'Ast'),
       el('th', { className: 'ev-col ev-turnover' }, 'TO'),
+      el('th', { className: 'ev-col ev-callahan' }, 'Cal'),
     ]),
   ]);
   table.appendChild(thead);
@@ -355,6 +439,7 @@ function renderLiveSummary(container, players, lines, events) {
     const scoreCount = pEvents.filter((e) => e.event_type === 'Score').length;
     const assistCount = pEvents.filter((e) => e.event_type === 'Assist').length;
     const toCount = pEvents.filter((e) => e.event_type === 'Turnover').length;
+    const calCount = pEvents.filter((e) => e.event_type === 'Callahan').length;
 
     const row = el('tr', { className: p.gender === 'M' ? 'row-male' : 'row-female' }, [
       el('td', {}, p.number != null ? String(p.number) : ''),
@@ -365,6 +450,7 @@ function renderLiveSummary(container, players, lines, events) {
       el('td', { className: 'ev-col ev-score' }, String(scoreCount)),
       el('td', { className: 'ev-col ev-assist' }, String(assistCount)),
       el('td', { className: 'ev-col ev-turnover' }, String(toCount)),
+      el('td', { className: 'ev-col ev-callahan' }, String(calCount)),
     ]);
     tbody.appendChild(row);
   });
@@ -412,6 +498,7 @@ function renderStatsTable(container, players, events) {
       el('th', { className: 'ev-col ev-score' }, 'Goal'),
       el('th', { className: 'ev-col ev-assist' }, 'Ast'),
       el('th', { className: 'ev-col ev-turnover' }, 'TO'),
+      el('th', { className: 'ev-col ev-callahan' }, 'Cal'),
       el('th', {}, 'Total'),
     ]),
   ]);
@@ -424,6 +511,7 @@ function renderStatsTable(container, players, events) {
     const scoreCount = pEvents.filter((e) => e.event_type === 'Score').length;
     const assistCount = pEvents.filter((e) => e.event_type === 'Assist').length;
     const toCount = pEvents.filter((e) => e.event_type === 'Turnover').length;
+    const calCount = pEvents.filter((e) => e.event_type === 'Callahan').length;
 
     const row = el('tr', { className: p.gender === 'M' ? 'row-male' : 'row-female' }, [
       el('td', {}, p.number != null ? String(p.number) : ''),
@@ -433,7 +521,8 @@ function renderStatsTable(container, players, events) {
       el('td', { className: 'ev-col ev-score' }, String(scoreCount)),
       el('td', { className: 'ev-col ev-assist' }, String(assistCount)),
       el('td', { className: 'ev-col ev-turnover' }, String(toCount)),
-      el('td', {}, String(dCount + scoreCount + assistCount + toCount)),
+      el('td', { className: 'ev-col ev-callahan' }, String(calCount)),
+      el('td', {}, String(dCount + scoreCount + assistCount + toCount + calCount)),
     ]);
     tbody.appendChild(row);
   });

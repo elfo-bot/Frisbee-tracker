@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS games (
   opponent TEXT NOT NULL,
   our_score INTEGER DEFAULT 0,
   their_score INTEGER DEFAULT 0,
+  start_od TEXT DEFAULT NULL CHECK (start_od IN ('O', 'D')),
+  start_gender TEXT DEFAULT NULL CHECK (start_gender IN ('M', 'F')),
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -29,6 +31,8 @@ CREATE TABLE IF NOT EXISTS lines (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   line_number INTEGER NOT NULL,
+  od_type TEXT DEFAULT NULL CHECK (od_type IN ('O', 'D')),
+  gender_ratio TEXT DEFAULT NULL CHECK (gender_ratio IN ('M', 'F')),
   status TEXT DEFAULT 'planned' CHECK (status IN ('planned', 'active', 'completed')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -47,7 +51,7 @@ CREATE TABLE IF NOT EXISTS player_events (
   game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   line_id UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
   player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  event_type TEXT NOT NULL CHECK (event_type IN ('D', 'Score', 'Assist', 'Turnover')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('D', 'Score', 'Assist', 'Turnover', 'Callahan')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
