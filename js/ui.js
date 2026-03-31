@@ -587,10 +587,9 @@ function renderLiveSummary(container, players, lines, events) {
       el('th', {}, 'G'),
       el('th', {}, 'Pts'),
       el('th', { className: 'ev-col ev-d' }, 'D'),
+      el('th', { className: 'ev-col ev-turnover' }, 'TO'),
       el('th', { className: 'ev-col ev-score' }, 'Goal'),
       el('th', { className: 'ev-col ev-assist' }, 'Ast'),
-      el('th', { className: 'ev-col ev-turnover' }, 'TO'),
-      el('th', { className: 'ev-col ev-callahan' }, 'Cal'),
     ]),
   ]);
   table.appendChild(thead);
@@ -609,7 +608,6 @@ function renderLiveSummary(container, players, lines, events) {
     const scoreCount = pEvents.filter((e) => e.event_type === 'Score').length;
     const assistCount = pEvents.filter((e) => e.event_type === 'Assist').length;
     const toCount = pEvents.filter((e) => e.event_type === 'Turnover').length;
-    const calCount = pEvents.filter((e) => e.event_type === 'Callahan').length;
 
     const row = el('tr', { className: p.gender === 'M' ? 'row-male' : 'row-female' }, [
       el('td', {}, p.number != null ? String(p.number) : ''),
@@ -617,10 +615,9 @@ function renderLiveSummary(container, players, lines, events) {
       el('td', {}, p.gender),
       el('td', {}, String(ptsPlayed)),
       el('td', { className: 'ev-col ev-d' }, String(dCount)),
+      el('td', { className: 'ev-col ev-turnover' }, String(toCount)),
       el('td', { className: 'ev-col ev-score' }, String(scoreCount)),
       el('td', { className: 'ev-col ev-assist' }, String(assistCount)),
-      el('td', { className: 'ev-col ev-turnover' }, String(toCount)),
-      el('td', { className: 'ev-col ev-callahan' }, String(calCount)),
     ]);
     tbody.appendChild(row);
   });
@@ -685,7 +682,7 @@ function renderStatsTable(container, players, events, linePlayers = [], lines = 
     const ast   = pEvents.filter((e) => e.event_type === 'Assist').length;
     const to    = pEvents.filter((e) => e.event_type === 'Turnover').length;
     const cal   = pEvents.filter((e) => e.event_type === 'Callahan').length;
-    return { p, num: p.number ?? 999, pts, d, goal, ast, to, cal, total: d + goal + ast + to + cal };
+    return { p, num: p.number ?? 999, pts, d, goal, ast, to, cal, total: goal + ast };
   });
 
   // Column definitions: key, label, className, sort accessor
@@ -695,10 +692,9 @@ function renderStatsTable(container, players, events, linePlayers = [], lines = 
     { key: 'g',     label: 'G',      cls: '',                    acc: (r) => r.p.gender },
     { key: 'pts',   label: 'Pts',    cls: 'pts-played-cell',     acc: (r) => r.pts },
     { key: 'd',     label: 'D',      cls: 'ev-col ev-d',         acc: (r) => r.d },
+    { key: 'to',    label: 'TO',     cls: 'ev-col ev-turnover',  acc: (r) => r.to },
     { key: 'goal',  label: 'Goal',   cls: 'ev-col ev-score',     acc: (r) => r.goal },
     { key: 'ast',   label: 'Ast',    cls: 'ev-col ev-assist',    acc: (r) => r.ast },
-    { key: 'to',    label: 'TO',     cls: 'ev-col ev-turnover',  acc: (r) => r.to },
-    { key: 'cal',   label: 'Cal',    cls: 'ev-col ev-callahan',  acc: (r) => r.cal },
     { key: 'total', label: 'Total',  cls: '',                    acc: (r) => r.total },
   ];
 
@@ -753,10 +749,9 @@ function renderStatsTable(container, players, events, linePlayers = [], lines = 
         el('td', {}, r.p.gender),
         el('td', { className: 'pts-played-cell' }, String(r.pts)),
         el('td', { className: 'ev-col ev-d' },        String(r.d)),
+        el('td', { className: 'ev-col ev-turnover' }, String(r.to)),
         el('td', { className: 'ev-col ev-score' },    String(r.goal)),
         el('td', { className: 'ev-col ev-assist' },   String(r.ast)),
-        el('td', { className: 'ev-col ev-turnover' }, String(r.to)),
-        el('td', { className: 'ev-col ev-callahan' }, String(r.cal)),
         el('td', {}, String(r.total)),
       ]);
       tbody.appendChild(row);
