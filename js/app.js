@@ -33,22 +33,21 @@ const state = {
   allLinePlayers: [],
 };
 
-// ---------- Squads (localStorage) ----------
-function loadSquads() {
-  try { return JSON.parse(localStorage.getItem('metro_squads_v1') || '{}'); }
-  catch { return {}; }
-}
-function saveSquads(squads) {
-  localStorage.setItem('metro_squads_v1', JSON.stringify(squads));
+// ---------- Squads (stored in players.squad column) ----------
+function loadSquadsFromPlayers(players) {
+  const squads = {};
+  players.forEach((p) => { if (p.squad) squads[p.id] = p.squad; });
+  return squads;
 }
 function setPlayerSquad(playerId, squad) {
-  const s = loadSquads();
-  if (squad) s[playerId] = squad;
-  else delete s[playerId];
-  saveSquads(s);
-  state.squads = s;
-  // No full refresh — just re-render the squads view instantly
+  // Optimistic: update local state immediately
+  if (squad) state.squads[playerId] = squad;
+  else delete state.squads[playerId];
+  // Also update player object in state
+  state.players = state.players.map((p) => p.id === playerId ? { ...p, squad: squad || null } : p);
   renderSquads(state.players, state.squads, { onAssign: setPlayerSquad });
+  // Persist to DB (fire-and-forget)
+  db.updatePlayer(playerId, { squad: squad || null });
 }
 
 // ---------- Navigation ----------
@@ -73,7 +72,7 @@ async function refresh() {
         break;
       case 'squads':
         state.players = await db.getPlayers();
-        state.squads = loadSquads();
+        state.squads = loadSquadsFromPlayers(state.players);
         renderSquads(state.players, state.squads, { onAssign: setPlayerSquad });
         break;
       case 'games':
@@ -87,7 +86,7 @@ async function refresh() {
           state.lines = data.lines;
           state.events = data.events;
           state.players = await db.getPlayers();
-          state.squads = loadSquads();
+          state.squads = loadSquadsFromPlayers(state.players);
           if (!state.currentOD && state.game && state.game.start_od) {
             state.currentOD = state.game.start_od;
           }
