@@ -29,6 +29,8 @@ const state = {
   builderGenderFilter: null, // null | 'M' | 'F'
   // Stats
   allEvents: [],
+  allLines: [],
+  allLinePlayers: [],
 };
 
 // ---------- Squads (localStorage) ----------
@@ -92,13 +94,19 @@ async function refresh() {
         }
         renderManagerView();
         break;
-      case 'stats':
-        state.games = await db.getGames();
-        state.players = await db.getPlayers();
-        const allEventsArrays = await Promise.all(state.games.map((g) => db.getGameEvents(g.id)));
+      case 'stats': {
+        const [games, players, statsData] = await Promise.all([
+          db.getGames(), db.getPlayers(), db.getStatsData(),
+        ]);
+        state.games = games;
+        state.players = players;
+        state.allLines = statsData.lines;
+        state.allLinePlayers = statsData.linePlayers;
+        const allEventsArrays = await Promise.all(games.map((g) => db.getGameEvents(g.id)));
         state.allEvents = allEventsArrays.flat();
-        renderStats(state.games, state.allEvents, state.players);
+        renderStats(state.games, state.allEvents, state.players, state.allLinePlayers, state.allLines);
         break;
+      }
     }
   } catch (err) {
     console.error('Refresh error:', err);

@@ -30,6 +30,14 @@ function abbaGender(startGender, pointNum) {
   return startGender === 'M' ? 'F' : 'M';
 }
 
+// Sort players: Males first, then Females (stable within each gender)
+function sortByGender(players) {
+  return [...players].sort((a, b) => {
+    if (a.gender === b.gender) return 0;
+    return a.gender === 'M' ? -1 : 1;
+  });
+}
+
 // ---------- NAV ----------
 export function renderNav(activeView, onNavigate) {
   const nav = document.getElementById('nav-stations');
@@ -44,6 +52,7 @@ export function renderNav(activeView, onNavigate) {
   views.forEach((v, i) => {
     const station = el('button', {
       className: `station${v.id === activeView ? ' active' : ''}`,
+      dataset: { view: v.id },
       onClick: () => onNavigate(v.id),
     }, [
       el('span', { className: 'station-dot' }),
@@ -65,7 +74,7 @@ export function renderSquads(players, squads, { onAssign }) {
   const LABELS = ['A', 'B', 'C'];
 
   // Unassigned pool — shown FIRST for quick access
-  const unassigned = players.filter((p) => p.active && !squads[p.id]);
+  const unassigned = sortByGender(players.filter((p) => p.active && !squads[p.id]));
   const unSec = el('div', { className: 'section-block' });
   unSec.appendChild(el('h3', { className: 'section-title' }, `UNASSIGNED${unassigned.length > 0 ? ` (${unassigned.length})` : ' — all assigned!'}`));
   if (unassigned.length > 0) {
@@ -80,7 +89,7 @@ export function renderSquads(players, squads, { onAssign }) {
   LABELS.forEach((label) => {
     const col = el('div', { className: `squad-col squad-col-${label.toLowerCase()}` });
     col.appendChild(el('h3', { className: 'squad-col-title' }, `LINE ${label}`));
-    const squadPlayers = players.filter((p) => squads[p.id] === label);
+    const squadPlayers = sortByGender(players.filter((p) => squads[p.id] === label));
     if (squadPlayers.length === 0) {
       col.appendChild(el('p', { className: 'squad-empty' }, '— empty —'));
     } else {
@@ -142,7 +151,7 @@ export function renderRoster(players, { onAdd, onDelete, onToggle }) {
 
   // Player list
   const grid = el('div', { className: 'roster-grid' });
-  players.forEach((p) => {
+  sortByGender(players).forEach((p) => {
     const box = el('div', { className: `player-box ${p.gender === 'M' ? 'male' : 'female'}${!p.active ? ' inactive' : ''}` }, [
       el('span', { className: 'player-number' }, p.number != null ? `#${p.number}` : ''),
       el('span', { className: 'player-name' }, p.name),
@@ -293,7 +302,7 @@ export function renderGameManager(state, handlers) {
       assistPanel.appendChild(el('h4', { className: 'assist-title' }, `🎯 ${scorer ? scorer.name : ''} scored! Who assisted?`));
 
       const assistGrid = el('div', { className: 'line-grid' });
-      activeLine.players.forEach((p) => {
+      sortByGender(activeLine.players).forEach((p) => {
         if (p.id === pendingScorePlayerId) return; // Can't assist yourself
         const box = el('div', {
           className: `player-box ${p.gender === 'M' ? 'male' : 'female'} assist-pick`,
@@ -313,7 +322,7 @@ export function renderGameManager(state, handlers) {
     } else {
       // ── Normal player select + event mode ──
       const lineGrid = el('div', { className: 'line-grid' });
-      activeLine.players.forEach((p) => {
+      sortByGender(activeLine.players).forEach((p) => {
         const isSelected = selectedPlayerId === p.id;
         const box = el('div', {
           className: `player-box ${p.gender === 'M' ? 'male' : 'female'}${isSelected ? ' selected' : ''}`,
@@ -508,7 +517,7 @@ export function renderGameManager(state, handlers) {
       rosterGrid.appendChild(el('p', { className: 'empty-msg' }, 'No players match filter.'));
     }
 
-    filteredPlayers.forEach((p) => {
+    sortByGender(filteredPlayers).forEach((p) => {
       const isIn = editingPlayerIds.includes(p.id);
       // Check if adding is allowed
       const canAdd = !isIn && editingPlayerIds.length < 7 && (
@@ -617,7 +626,7 @@ function renderLiveSummary(container, players, lines, events) {
 }
 
 // ---------- STATS VIEW ----------
-export function renderStats(allGames, allEvents, players) {
+export function renderStats(allGames, allEvents, players, allLinePlayers = [], allLines = []) {
   const sec = document.getElementById('view-stats');
   clearEl(sec);
 
@@ -631,26 +640,46 @@ export function renderStats(allGames, allEvents, players) {
   ]);
   sel.addEventListener('change', () => {
     const val = sel.value;
-    const filtered = val === 'all' ? allEvents : allEvents.filter((e) => e.game_id === val);
-    renderStatsTable(sec, players, filtered);
+    const filteredEvents = val === 'all' ? allEvents : allEvents.filter((e) => e.game_id === val);
+    let filteredLines = allLines;
+    let filteredLP = allLinePlayers;
+    if (val !== 'all') {
+      filteredLines = allLines.filter((l) => l.game_id === val);
+      const lineIdSet = new Set(filteredLines.map((l) => l.id));
+      filteredLP = allLinePlayers.filter((lp) => lineIdSet.has(lp.line_id));
+    }
+    renderStatsTable(sec, players, filteredEvents, filteredLP, filteredLines);
   });
   filterWrap.appendChild(el('label', {}, 'Filter by game: '));
   filterWrap.appendChild(sel);
   sec.appendChild(filterWrap);
 
-  renderStatsTable(sec, players, allEvents);
+  renderStatsTable(sec, players, allEvents, allLinePlayers, allLines);
 }
 
-function renderStatsTable(container, players, events) {
+function renderStatsTable(container, players, events, linePlayers = [], lines = []) {
   let existing = container.querySelector('.stats-table');
   if (existing) existing.remove();
 
+  // Compute points played per player from completed/active lines
+  const completedLineIds = new Set(
+    lines.filter((l) => l.status === 'completed' || l.status === 'active').map((l) => l.id)
+  );
+  const ptsPlayedMap = {};
+  linePlayers.forEach((lp) => {
+    if (completedLineIds.has(lp.line_id)) {
+      ptsPlayedMap[lp.player_id] = (ptsPlayedMap[lp.player_id] || 0) + 1;
+    }
+  });
+
+  const wrap = el('div', { className: 'stats-table-wrap' });
   const table = el('table', { className: 'summary-table stats-table' });
   const thead = el('thead', {}, [
     el('tr', {}, [
       el('th', {}, '#'),
       el('th', {}, 'Player'),
       el('th', {}, 'G'),
+      el('th', {}, 'Pts'),
       el('th', { className: 'ev-col ev-d' }, 'D'),
       el('th', { className: 'ev-col ev-score' }, 'Goal'),
       el('th', { className: 'ev-col ev-assist' }, 'Ast'),
@@ -662,21 +691,23 @@ function renderStatsTable(container, players, events) {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  players.forEach((p) => {
+  sortByGender(players).forEach((p) => {
+    const ptsPlayed = ptsPlayedMap[p.id] || 0;
     const pEvents = events.filter((e) => e.player_id === p.id);
-    const dCount = pEvents.filter((e) => e.event_type === 'D').length;
+    const dCount     = pEvents.filter((e) => e.event_type === 'D').length;
     const scoreCount = pEvents.filter((e) => e.event_type === 'Score').length;
     const assistCount = pEvents.filter((e) => e.event_type === 'Assist').length;
-    const toCount = pEvents.filter((e) => e.event_type === 'Turnover').length;
-    const calCount = pEvents.filter((e) => e.event_type === 'Callahan').length;
+    const toCount    = pEvents.filter((e) => e.event_type === 'Turnover').length;
+    const calCount   = pEvents.filter((e) => e.event_type === 'Callahan').length;
 
     const row = el('tr', { className: p.gender === 'M' ? 'row-male' : 'row-female' }, [
       el('td', {}, p.number != null ? String(p.number) : ''),
       el('td', {}, p.name),
       el('td', {}, p.gender),
-      el('td', { className: 'ev-col ev-d' }, String(dCount)),
-      el('td', { className: 'ev-col ev-score' }, String(scoreCount)),
-      el('td', { className: 'ev-col ev-assist' }, String(assistCount)),
+      el('td', { className: 'pts-played-cell' }, String(ptsPlayed)),
+      el('td', { className: 'ev-col ev-d' },        String(dCount)),
+      el('td', { className: 'ev-col ev-score' },    String(scoreCount)),
+      el('td', { className: 'ev-col ev-assist' },   String(assistCount)),
       el('td', { className: 'ev-col ev-turnover' }, String(toCount)),
       el('td', { className: 'ev-col ev-callahan' }, String(calCount)),
       el('td', {}, String(dCount + scoreCount + assistCount + toCount + calCount)),
@@ -684,5 +715,6 @@ function renderStatsTable(container, players, events) {
     tbody.appendChild(row);
   });
   table.appendChild(tbody);
-  container.appendChild(table);
+  wrap.appendChild(table);
+  container.appendChild(wrap);
 }

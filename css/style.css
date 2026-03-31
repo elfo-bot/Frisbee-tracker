@@ -1,24 +1,44 @@
 /* ============================================
-   METRO Ultimate Frisbee Tracker — Subway Theme
+   METRO Ultimate Frisbee Tracker — HK MTR Theme
    ============================================ */
 
 /* ---------- Foundations ---------- */
 :root {
-  --bg-dark: #0d0d1a;
-  --bg-surface: #161625;
-  --bg-card: #1e1e32;
-  --text-primary: #eaeaea;
-  --text-muted: #8888aa;
-  --accent-red: #e23636;
-  --accent-blue: #0075c9;
-  --accent-green: #00a86b;
+  /* Background palette */
+  --bg-dark:    #090910;
+  --bg-surface: #111119;
+  --bg-card:    #18182a;
+  --bg-hover:   #20203a;
+  --border-color: #2c2c46;
+
+  /* Text */
+  --text-primary: #f0f0f6;
+  --text-muted:   #7070a0;
+
+  /* HK MTR Line Colours */
+  --mtr-red:    #e8192c;   /* Tsuen Wan Line  — brand red   */
+  --mtr-green:  #1aa14a;   /* Kwun Tong Line  — green       */
+  --mtr-blue:   #0075c9;   /* Island Line     — blue        */
+  --mtr-orange: #f79336;   /* Tung Chung Line — orange      */
+  --mtr-purple: #8544aa;   /* TKO Line        — purple      */
+  --mtr-teal:   #53b7e8;   /* East Rail Line  — light blue  */
+
+  /* App accent aliases */
+  --accent-red:    var(--mtr-red);
+  --accent-blue:   var(--mtr-blue);
+  --accent-green:  var(--mtr-green);
   --accent-yellow: #f5c518;
-  --male-bg: #0075c9;
-  --male-border: #3399e0;
-  --female-bg: #d6336c;
-  --female-border: #e8609a;
+
+  /* Gender colours */
+  --male-bg:     #0d62b5;
+  --male-border: #2e87d4;
+  --female-bg:   #b82060;
+  --female-border: #e04b8a;
+
+  /* Misc */
   --font: 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif;
   --radius: 6px;
+  --radius-lg: 10px;
   --transition: .2s ease;
 }
 
@@ -36,54 +56,48 @@ body {
 
 /* ---------- Header ---------- */
 .header {
-  background: linear-gradient(135deg, #12122a 0%, #1a1a3e 100%);
-  padding: 16px 20px;
+  background: #07070f;
+  padding: 12px 20px;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 3px solid var(--accent-red);
+  border-bottom: 4px solid var(--mtr-red);
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 2px 20px rgba(232, 25, 44, 0.2);
 }
 
 .header .logo {
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   font-weight: 900;
   letter-spacing: 4px;
   text-transform: uppercase;
   color: #fff;
-}
-
-.header .logo .metro-icon {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--accent-red);
-  color: #fff;
-  font-size: 1.1rem;
-  font-weight: 900;
-  margin-right: 8px;
-  vertical-align: middle;
+  gap: 8px;
+  line-height: 1;
 }
 
 .header .subtitle {
-  font-size: .75rem;
+  font-size: .68rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 2px;
+  margin-top: 2px;
 }
 
-/* ---------- Navigation (subway line) ---------- */
+/* ---------- Navigation (HK MTR subway line) ---------- */
 .nav-bar {
   background: var(--bg-surface);
-  padding: 14px 20px;
+  padding: 12px 16px;
   overflow-x: auto;
-  border-bottom: 1px solid #2a2a44;
+  border-bottom: 1px solid var(--border-color);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.nav-bar::-webkit-scrollbar { display: none; }
 
 #nav-stations {
   display: flex;
@@ -91,6 +105,13 @@ body {
   gap: 0;
   min-width: max-content;
 }
+
+/* Per-tab MTR line colours */
+.station[data-view="roster"]  { --dot-color: var(--mtr-green); }
+.station[data-view="squads"]  { --dot-color: var(--mtr-teal); }
+.station[data-view="games"]   { --dot-color: var(--mtr-blue); }
+.station[data-view="manager"] { --dot-color: var(--mtr-red); }
+.station[data-view="stats"]   { --dot-color: var(--mtr-orange); }
 
 .station {
   background: none;
@@ -101,48 +122,55 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   transition: var(--transition);
   position: relative;
+  min-height: 44px;
+  justify-content: center;
 }
 
-.station:hover { color: var(--text-primary); }
-
-.station.active { color: #fff; }
+.station:hover  { color: var(--text-primary); }
+.station.active { color: var(--dot-color, #fff); }
 
 .station-dot {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  border: 3px solid var(--text-muted);
-  background: var(--bg-surface);
+  border: 3px solid var(--dot-color, var(--text-muted));
+  background: transparent;
   transition: var(--transition);
 }
 
 .station.active .station-dot {
-  background: var(--accent-red);
-  border-color: var(--accent-red);
-  box-shadow: 0 0 8px rgba(226, 54, 54, .5);
+  background: var(--dot-color, var(--accent-red));
+  border-color: var(--dot-color, var(--accent-red));
+  box-shadow: 0 0 10px var(--dot-color, var(--accent-red));
 }
 
 .station:hover .station-dot {
-  border-color: var(--text-primary);
+  border-color: var(--dot-color, var(--text-primary));
+  background: color-mix(in srgb, var(--dot-color, #fff) 20%, transparent);
 }
 
 .station-label {
-  font-size: .7rem;
+  font-size: .65rem;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
+/* Connector lines: gradient between adjacent station colours */
 .station-line {
-  flex: 0 0 40px;
-  height: 3px;
-  background: var(--text-muted);
+  flex: 0 0 36px;
+  height: 4px;
+  border-radius: 2px;
   margin-bottom: 18px;
 }
+#nav-stations > span:nth-of-type(1) { background: linear-gradient(90deg, var(--mtr-green), var(--mtr-teal)); }
+#nav-stations > span:nth-of-type(2) { background: linear-gradient(90deg, var(--mtr-teal),  var(--mtr-blue)); }
+#nav-stations > span:nth-of-type(3) { background: linear-gradient(90deg, var(--mtr-blue),  var(--mtr-red)); }
+#nav-stations > span:nth-of-type(4) { background: linear-gradient(90deg, var(--mtr-red),   var(--mtr-orange)); }
 
 /* ---------- Main content ---------- */
 .main-content {
@@ -186,10 +214,13 @@ body {
   letter-spacing: 1px;
   border: none;
   border-radius: var(--radius);
-  padding: 8px 16px;
+  padding: 10px 16px;
   cursor: pointer;
   transition: var(--transition);
   color: #fff;
+  min-height: 40px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
@@ -636,6 +667,7 @@ input:focus, select:focus {
 .ev-col.ev-score { color: var(--accent-blue); }
 .ev-col.ev-assist { color: #a78bfa; }
 .ev-col.ev-turnover { color: var(--accent-red); }
+.pts-played-cell { color: var(--mtr-teal); font-weight: 700; }
 
 /* ---------- Stats filter ---------- */
 .stats-filter {
@@ -906,17 +938,61 @@ input:focus, select:focus {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 600px) {
-  .header { padding: 12px; }
-  .header .logo { font-size: 1.3rem; letter-spacing: 2px; }
+  /* Move nav to bottom */
+  .nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    border-bottom: none;
+    border-top: 2px solid var(--border-color);
+    padding: 0;
+    z-index: 200;
+    background: rgba(9, 9, 16, 0.97);
+    backdrop-filter: blur(8px);
+  }
+  #nav-stations {
+    width: 100%;
+    justify-content: space-around;
+    min-width: unset;
+  }
+  .station {
+    flex: 1;
+    padding: 8px 4px;
+    min-height: 52px;
+  }
+  .station-line { display: none; }
+
+  .header { padding: 10px 14px; }
+  .header .logo { font-size: 1.2rem; letter-spacing: 2px; }
   .score-value { font-size: 2.2rem; }
   .scoreboard { padding: 14px 10px; gap: 12px; }
   .player-box { min-width: 80px; padding: 8px 10px; }
-  .player-box.small { min-width: 70px; }
-  .roster-form, .game-form { padding: 8px; }
+  .player-box.small { min-width: 70px; padding: 6px 8px; }
+  .roster-form, .game-form { padding: 8px; flex-direction: column; align-items: stretch; }
+  .roster-form input, .roster-form select,
+  .game-form input, .game-form select { width: 100%; }
   .main-content { padding: 12px 8px 80px; }
+
+  /* Stats table — horizontal scroll on narrow screens */
+  .stats-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .summary-table { font-size: .7rem; }
-  .summary-table th, .summary-table td { padding: 4px 3px; }
+  .summary-table th, .summary-table td { padding: 5px 3px; }
+
+  /* Builder grid 2-column */
+  .builder-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Planned line header wrap nicely */
+  .planned-line-header { gap: 6px; }
+  .planned-line-actions { flex-wrap: wrap; }
+
   .squads-grid { grid-template-columns: 1fr; }
+  .section-block { padding: 12px; }
+  .od-banner { font-size: 1.1rem; padding: 12px; }
 }
 
 /* ============================================

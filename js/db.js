@@ -113,6 +113,15 @@ export async function deleteEvent(id) {
   return query(`player_events?id=eq.${id}`, { method: 'DELETE' });
 }
 
+// ---------- Stats data (all lines + line_players for pts-played calculation) ----------
+export async function getStatsData() {
+  const [lines, linePlayers] = await Promise.all([
+    query('lines', { params: { select: 'id,game_id,status' } }),
+    query('line_players', { params: { select: 'player_id,line_id' } }),
+  ]);
+  return { lines, linePlayers };
+}
+
 // ---------- Composite queries ----------
 export async function getGameWithLines(gameId) {
   const [game, lines, events] = await Promise.all([
