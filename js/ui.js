@@ -339,7 +339,6 @@ export function renderGameManager(state, handlers) {
       if (selectedPlayerId) {
         const selPlayer = activeLine.players.find((p) => p.id === selectedPlayerId);
         const eventPanel = el('div', { className: 'event-panel' }, [
-          el('span', { className: 'event-label' }, `Event for ${selPlayer ? selPlayer.name : ''}:`),
           ...['D', 'Score', 'Turnover'].map((evt) =>
             el('button', {
               className: `btn event-btn event-${evt.toLowerCase()}`,
