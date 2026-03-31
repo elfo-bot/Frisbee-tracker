@@ -113,15 +113,22 @@ function makeSquadCard(player, currentSquad, labels, onAssign) {
     player.number != null ? el('span', { className: 'player-number' }, `#${player.number}`) : el('span', {}),
     el('span', {}, player.name),
   ]));
-  // Squad toggle buttons
-  const btns = el('div', { className: 'squad-card-btns' });
-  labels.forEach((s) => {
-    btns.appendChild(el('button', {
-      className: `btn btn-tiny squad-btn${currentSquad === s ? ' squad-btn-active' : ''}`,
-      onClick: () => onAssign(player.id, currentSquad === s ? null : s),
-    }, s));
-  });
-  card.appendChild(btns);
+
+  if (currentSquad) {
+    // Already assigned — click to unassign (return to unassigned)
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => onAssign(player.id, null));
+  } else {
+    // Unassigned — show A/B/C buttons
+    const btns = el('div', { className: 'squad-card-btns' });
+    labels.forEach((s) => {
+      btns.appendChild(el('button', {
+        className: 'btn btn-tiny squad-btn',
+        onClick: () => onAssign(player.id, s),
+      }, s));
+    });
+    card.appendChild(btns);
+  }
   return card;
 }
 
